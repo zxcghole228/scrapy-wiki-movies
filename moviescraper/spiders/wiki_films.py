@@ -11,7 +11,7 @@ class WikiFilmsSpider(scrapy.Spider):
         'FEED_EXPORT_FIELDS': ['title', 'genre', 'director', 'country', 'year', 'imdb_rating'],
         'DOWNLOAD_DELAY': 1,
     }
-    OMDB_API_KEY = "3fac53bc"
+    API_KEY = "3fac53bc"
 
     def parse(self, response):
         subcategories = response.css("#mw-subcategories a::attr(href)").getall()
@@ -48,7 +48,7 @@ class WikiFilmsSpider(scrapy.Spider):
 
         if item['year'] and item['title']:
             clean_title = re.sub(r"\(.*?\)", "", item['title']).strip()
-            url = f"http://www.omdbapi.com/?apikey={self.OMDB_API_KEY}&t={clean_title}&y={item['year']}"
+            url = f"http://www.omdbapi.com/?apikey={self.API_KEY}&t={clean_title}&y={item['year']}"
             yield scrapy.Request(
                 url,
                 callback=self.parse_imdb,
