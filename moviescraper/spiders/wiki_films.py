@@ -9,13 +9,15 @@ class WikiFilmsSpider(scrapy.Spider):
     custom_settings = {
         'FEED_EXPORT_ENCODING': 'utf-8',
         'FEED_EXPORT_FIELDS': ['title', 'genre', 'director', 'country', 'year', 'imdb_rating'],
-        'DOWNLOAD_DELAY': 0.5,  # Вежливость к Википедии
+        'DOWNLOAD_DELAY': 1,
     }
+    OMDB_API_KEY = "3fac53bc"
 
     def parse(self, response):
         subcategories = response.css("#mw-subcategories a::attr(href)").getall()
         for subcat in subcategories:
             yield response.follow(subcat, callback=self.parse_category)
+
         if not subcategories:
             yield from self.parse_category(response)
 
@@ -23,6 +25,7 @@ class WikiFilmsSpider(scrapy.Spider):
         films = response.css("#mw-pages li a::attr(href)").getall()
         for film_url in films:
             yield response.follow(film_url, callback=self.parse_film)
+
         next_page = response.css("a:contains('Следующая страница')::attr(href)").get()
         if next_page:
             yield response.follow(next_page, callback=self.parse_category)
@@ -31,7 +34,9 @@ class WikiFilmsSpider(scrapy.Spider):
         infobox = response.css("table.infobox")
         if not infobox:
             return
+
         title = response.css("h1#firstHeading::text").get()
+
         item = {
             'title': title,
             'genre': self.get_infobox_value(infobox, ['Жанр', 'Жанры']),
@@ -43,9 +48,7 @@ class WikiFilmsSpider(scrapy.Spider):
 
         if item['year'] and item['title']:
             clean_title = re.sub(r"\(.*?\)", "", item['title']).strip()
-            # Используем OMDb API
-            api_key = "3fac53bc"
-            url = f"http://www.omdbapi.com/?apikey={api_key}&t={clean_title}&y={item['year']}"
+            url = f"http://www.omdbapi.com/?apikey={self.OMDB_API_KEY}&t={clean_title}&y={item['year']}"
             yield scrapy.Request(
                 url,
                 callback=self.parse_imdb,
@@ -57,16 +60,15 @@ class WikiFilmsSpider(scrapy.Spider):
 
     def parse_imdb(self, response):
         item = response.meta['item']
-        json_response = response.json()
+        data = response.json()
 
-        if json_response.get('Response') == 'True':
-            item['imdb_rating'] = json_response.get('imdbRating')
+        if data.get('Response') == 'True':
+            item['imdb_rating'] = data.get('imdbRating')
         else:
-            item['imdb_rating'] = "Not found"
+            item['imdb_rating'] = "Not Found"
 
         yield item
 
-    # Вспомогательные методы очистки
     def get_infobox_value(self, infobox, keys):
         for key in keys:
             row = infobox.xpath(f".//tr[th[contains(text(), '{key}')]]")
